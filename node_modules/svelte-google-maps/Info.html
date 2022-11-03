@@ -1,0 +1,45 @@
+<div>
+  <div ref:content><slot /></div>
+</div>
+
+<script>
+  import { deferred } from './src/utils';
+
+  export default {
+    data() {
+      return {
+        info: deferred()
+      };
+    },
+    
+    async oncreate() {
+      const { map: context, position } = this.get();
+      const content = this.refs.content;
+
+      const { api, map } = await context.ready();
+      const info = new api.InfoWindow({
+        content,
+        position
+      });
+
+      info.addListener('closeclick', () => this.fire('close', info));
+
+      this.observe('position', position => {
+        info.setPosition(position);
+
+        // If another InfoWindow is opened (e.g. Place)
+        // then component may not have been destroyed
+        // -> check for no map on position change, and re-open
+        if (!info.map) info.open(map);
+      }, { init: false });
+      
+      info.open(map);
+      this.get('info').resolve(info);
+    },
+
+    async ondestroy() {
+      const info = await this.get('info');
+      info.close();
+    }
+  }
+</script>

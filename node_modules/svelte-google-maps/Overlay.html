@@ -1,0 +1,83 @@
+<div>
+  <div ref:container style="transform: translate({{translation.x}}px, {{translation.y}}px); position: absolute;"><slot /></div>
+</div>
+
+<script>
+  import { deferred } from './src/utils';
+
+  export default {
+    data() {
+      return {
+        overlay: deferred(),
+        mapPane: 'floatPane',
+        translation: { x: 0, y: 0 }
+      };
+    },
+
+    async oncreate() {
+      const { map: context, mapPane } = this.get();
+      const container = this.refs.container;
+      
+      // Normalize offset into function that always returns { x, y }
+      let getOffset = prepareOffset(this.get('offset'), container);
+
+      const { api, map } = await context.ready();
+      const overlay = new api.OverlayView();
+      const component = this;
+
+      overlay.onAdd = function () {
+        const pane = this.getPanes()[mapPane];
+        if (!pane) throw new Error(`No pane found for type "${mapPane}"`);
+
+        pane.appendChild(container);
+      };
+
+      overlay.draw = function () {
+        const { position, bounds } = component.get();
+        
+        if (position) {
+          const { lat, lng } = position;
+          const offset = getOffset();
+
+          const projection = this.getProjection();
+          const { x, y } = projection.fromLatLngToDivPixel(new api.LatLng(lat, lng));
+
+          const translation = { x: x + offset.x, y: y + offset.y };
+          component.set({ translation });
+        } else if (bounds) {
+          // TODO
+        }
+      };
+
+      overlay.onRemove = () => {};
+
+      // Redraw overlay on positioning changes
+      this.observe('position', () => overlay.draw(), { init: false });
+      this.observe('bounds', () => overlay.draw(), { init: false });
+      this.observe('offset', value => {
+        getOffset = prepareOffset(value, container);
+        overlay.draw();
+      }, { init: false });
+
+      overlay.setMap(map);
+      this.get('overlay').resolve(overlay);
+    },
+
+    async ondestroy() {
+      const overlay = await this.get('overlay');
+      overlay.setMap(null);
+    }
+  }
+
+  function prepareOffset(offset, container) {
+    if (typeof offset === 'function') {
+      return () => {
+        const value = offset(container);
+        return { x: value && value.x || 0, y: value && value.y || 0 };
+      };
+    } else {
+      const value = { x: offset && offset.x || 0, y: offset && offset.y || 0 };
+      return () => value;
+    }
+  }
+</script>

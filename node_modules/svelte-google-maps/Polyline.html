@@ -1,0 +1,31 @@
+<script>
+  import { deferred } from './src/utils';
+
+  export default {
+    data() {
+      return {
+        polyline: deferred()
+      };
+    },
+    
+    async oncreate() {
+      const { map: context, path, color: strokeColor, weight: strokeWeight } = this.get();
+
+      const { api, map } = await context.ready();
+      const polyline = new api.Polyline({
+        path,
+        geodesic: true,
+        strokeColor,
+        strokeWeight
+      });
+
+      polyline.setMap(map);
+      this.get('polyline').resolve(polyline);
+    },
+
+    async ondestroy() {
+      const polyline = await this.get('polyline');
+      polyline.setMap(null);
+    }
+  }
+</script>
